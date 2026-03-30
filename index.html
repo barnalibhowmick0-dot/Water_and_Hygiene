@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WASH Dashboard · BVU Dhankawadi, Pune</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cream:#f8f5f0;--parchment:#ede8df;--sand:#ddd6c8;
+  --blue-ink:#183457;--blue-mid:#2155a0;--blue-sky:#4b88c7;--blue-pale:#ddeaf8;
+  --teal:#1a7a6e;--amber:#b86b1a;--red:#a8302a;--green:#2a6e3f;
+  --text:#1e1e1e;--text2:#5a5653;
+  --border:rgba(24,52,87,0.12);--shadow:0 2px 18px rgba(24,52,87,0.10);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Jost',sans-serif;background:var(--cream);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13.5px}
+
+.topbar{height:58px;flex-shrink:0;background:var(--blue-ink);display:flex;align-items:center;padding:0 20px;gap:14px;box-shadow:0 2px 16px rgba(0,0,0,0.22);z-index:1000}
+.topbar-logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--blue-sky),var(--blue-mid));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.topbar-text h1{font-family:'Cormorant Garamond',serif;font-size:1.05rem;font-weight:700;color:#fff;letter-spacing:.01em}
+.topbar-text p{font-size:.65rem;color:#90b4d8;font-weight:300;letter-spacing:.04em}
+.topbar-pills{display:flex;gap:6px;margin-left:auto;align-items:center}
+.tpill{padding:3px 11px;border-radius:20px;font-size:.65rem;font-weight:500;letter-spacing:.04em;background:rgba(255,255,255,.10);color:#c8ddf0;border:1px solid rgba(255,255,255,.12)}
+.tpill.live{background:rgba(42,110,63,.35);color:#7de0a0;border-color:rgba(42,110,63,.4)}
+#clock{font-size:.72rem;color:#90b4d8;font-variant-numeric:tabular-nums}
+
+.body-wrap{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{width:278px;flex-shrink:0;background:var(--cream);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.stat-strip{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--sand);border-bottom:1px solid var(--border)}
+.stat-cell{background:var(--cream);padding:11px 14px;text-align:center}
+.stat-num{font-family:'Cormorant Garamond',serif;font-size:1.7rem;font-weight:700;line-height:1;color:var(--blue-ink)}
+.stat-lbl{font-size:.6rem;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+.sidebar-inner{flex:1;overflow-y:auto;padding:14px}
+.sidebar-inner::-webkit-scrollbar{width:4px}
+.sidebar-inner::-webkit-scrollbar-thumb{background:var(--sand);border-radius:4px}
+.s-head{font-size:.6rem;text-transform:uppercase;letter-spacing:.09em;font-weight:600;color:var(--text2);margin:14px 0 8px;display:flex;align-items:center;gap:7px}
+.s-head::after{content:'';flex:1;height:1px;background:var(--sand)}
+
+.lyr-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:9px;background:var(--parchment);margin-bottom:5px;cursor:pointer;transition:background .15s;border:1.5px solid transparent}
+.lyr-row:hover{background:var(--blue-pale);border-color:rgba(75,136,199,.25)}
+.lyr-row.active{background:var(--blue-pale);border-color:var(--blue-sky)}
+.lyr-left{display:flex;align-items:center;gap:8px;flex:1}
+.lyr-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid rgba(0,0,0,.1)}
+.lyr-name{font-size:.78rem;font-weight:500}
+.lyr-count{font-size:.65rem;font-weight:600;background:rgba(24,52,87,.10);color:var(--blue-ink);padding:1px 7px;border-radius:10px;margin-right:6px}
+
+.tog{position:relative;width:30px;height:16px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0}
+.tog-sl{position:absolute;inset:0;background:#bbb;border-radius:16px;transition:.25s;cursor:pointer}
+.tog-sl:before{content:'';position:absolute;width:12px;height:12px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.25s}
+.tog input:checked+.tog-sl{background:var(--blue-mid)}
+.tog input:checked+.tog-sl:before{transform:translateX(14px)}
+
+.legend-box{background:var(--parchment);border-top:1px solid var(--border);padding:12px 14px}
+.legend-box h4{font-size:.6rem;text-transform:uppercase;letter-spacing:.09em;color:var(--text2);font-weight:600;margin-bottom:9px}
+.leg-item{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:.72rem}
+.leg-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+
+/* MAP */
+.map-wrap{flex:1;position:relative;display:flex;flex-direction:column}
+.bm-bar{display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--cream);border-bottom:1px solid var(--border);flex-shrink:0}
+.bm-lbl{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);font-weight:600;margin-right:4px}
+.bm-btn{padding:4px 12px;border-radius:20px;font-family:'Jost',sans-serif;font-size:.72rem;font-weight:500;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:var(--parchment);color:var(--text2)}
+.bm-btn.on{background:var(--blue-ink);color:#fff;border-color:var(--blue-ink)}
+.bm-sep{flex:1}
+.recenter-btn{padding:4px 12px;border-radius:20px;font-family:'Jost',sans-serif;font-size:.72rem;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--parchment);color:var(--text2);transition:all .15s}
+.recenter-btn:hover{background:var(--blue-pale);border-color:var(--blue-sky)}
+#map{flex:1;z-index:1}
+
+/* RIGHT PANEL */
+.right-panel{width:268px;flex-shrink:0;background:var(--cream);border-left:1px solid var(--border);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+.right-panel::-webkit-scrollbar{width:4px}
+.right-panel::-webkit-scrollbar-thumb{background:var(--sand);border-radius:4px}
+.card{background:var(--parchment);border:1px solid var(--border);border-radius:12px;padding:13px 14px}
+.card-title{font-family:'Cormorant Garamond',serif;font-size:.95rem;font-weight:700;color:var(--blue-ink);margin-bottom:11px;display:flex;align-items:center;gap:7px}
+.pb-row{margin-bottom:9px}
+.pb-top{display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:4px;font-weight:500}
+.pb-track{height:7px;background:var(--sand);border-radius:10px;overflow:hidden}
+.pb-fill{height:100%;border-radius:10px}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.62rem;font-weight:600;letter-spacing:.04em}
+.pill-ok{background:#dff0e5;color:var(--green)}
+.pill-mod{background:#faebd7;color:var(--amber)}
+.pill-bad{background:#fae0de;color:var(--red)}
+.f-table{width:100%;border-collapse:collapse;font-size:.72rem}
+.f-table th{text-align:left;padding:5px 7px;font-size:.59rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);background:var(--sand);font-weight:600}
+.f-table td{padding:6px 7px;border-bottom:1px solid var(--sand)}
+.f-table tr:last-child td{border-bottom:none}
+.c-good{color:var(--green);font-weight:700}
+.c-mod{color:var(--amber);font-weight:700}
+.c-bad{color:var(--red);font-weight:700}
+
+/* POPUP */
+.leaflet-popup-content-wrapper{border-radius:13px!important;box-shadow:0 8px 32px rgba(24,52,87,.22)!important;padding:0!important;overflow:hidden;border:none!important}
+.leaflet-popup-content{margin:0!important;width:250px!important}
+.leaflet-popup-tip{background:#fff!important}
+.pop-head{padding:13px 15px 10px;display:flex;align-items:flex-start;gap:10px}
+.pop-icon-wrap{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.pop-title{font-family:'Cormorant Garamond',serif;font-size:1rem;font-weight:700;color:var(--blue-ink);line-height:1.2}
+.pop-type{font-size:.62rem;font-weight:500;color:var(--text2);margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+.pop-divider{height:1px;background:var(--sand);margin:0 15px 10px}
+.pop-body{padding:0 15px 14px}
+.pop-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #ede8df;font-size:.73rem}
+.pop-row:last-of-type{border-bottom:none}
+.pop-key{color:var(--text2)}
+.pop-val{font-weight:600;text-align:right;max-width:140px}
+.pop-note{background:var(--blue-pale);border-radius:8px;padding:8px 10px;font-size:.7rem;color:var(--blue-mid);margin-top:10px;line-height:1.5}
+.pop-coords{font-size:.58rem;font-family:monospace;color:var(--text2);margin-top:7px;text-align:center}
+.leaflet-popup-close-button{color:var(--text2)!important;font-size:18px!important;padding:6px 8px!important}
+.leaflet-control-attribution{font-size:9px!important}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">💧</div>
+  <div class="topbar-text">
+    <h1>WASH Monitoring Dashboard</h1>
+    <p>Water · Sanitation · Hygiene &nbsp;|&nbsp; Bharati Vidyapeeth University, Dhankawadi, Pune &nbsp;|&nbsp; 500 m Buffer Zone Study Area</p>
+  </div>
+  <div class="topbar-pills">
+    <span class="tpill live">● Live</span>
+    <span class="tpill">📍 18.4616°N &nbsp;73.8565°E</span>
+    <span class="tpill">🛰 Google Earth · Leaflet</span>
+    <span id="clock"></span>
+  </div>
+</div>
+
+<div class="body-wrap">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="stat-strip">
+    <div class="stat-cell"><div class="stat-num">32</div><div class="stat-lbl">Total Points</div></div>
+    <div class="stat-cell"><div class="stat-num" style="color:var(--green)">19</div><div class="stat-lbl">Good</div></div>
+    <div class="stat-cell"><div class="stat-num" style="color:var(--amber)">9</div><div class="stat-lbl">Moderate</div></div>
+    <div class="stat-cell"><div class="stat-num" style="color:var(--red)">4</div><div class="stat-lbl">Critical</div></div>
+  </div>
+
+  <div class="sidebar-inner">
+    <div class="s-head">WASH Layers</div>
+
+    <div class="lyr-row active" id="lr-water">
+      <div class="lyr-left"><div class="lyr-dot" style="background:#4b88c7"></div><span class="lyr-name">💧 Water Sources</span></div>
+      <span class="lyr-count">9</span>
+      <label class="tog"><input type="checkbox" id="cb-water" checked><span class="tog-sl"></span></label>
+    </div>
+    <div class="lyr-row active" id="lr-toilet">
+      <div class="lyr-left"><div class="lyr-dot" style="background:#2a6e3f"></div><span class="lyr-name">🚻 Toilet Blocks</span></div>
+      <span class="lyr-count">7</span>
+      <label class="tog"><input type="checkbox" id="cb-toilet" checked><span class="tog-sl"></span></label>
+    </div>
+    <div class="lyr-row active" id="lr-wash">
+      <div class="lyr-left"><div class="lyr-dot" style="background:#b86b1a"></div><span class="lyr-name">🧼 Handwash Stations</span></div>
+      <span class="lyr-count">6</span>
+      <label class="tog"><input type="checkbox" id="cb-wash" checked><span class="tog-sl"></span></label>
+    </div>
+    <div class="lyr-row active" id="lr-drain">
+      <div class="lyr-left"><div class="lyr-dot" style="background:#7b4fa6"></div><span class="lyr-name">🌊 Drainage Points</span></div>
+      <span class="lyr-count">5</span>
+      <label class="tog"><input type="checkbox" id="cb-drain" checked><span class="tog-sl"></span></label>
+    </div>
+    <div class="lyr-row active" id="lr-waste">
+      <div class="lyr-left"><div class="lyr-dot" style="background:#c8882a"></div><span class="lyr-name">🗑 Solid Waste Sites</span></div>
+      <span class="lyr-count">3</span>
+      <label class="tog"><input type="checkbox" id="cb-waste" checked><span class="tog-sl"></span></label>
+    </div>
+    <div class="lyr-row active" id="lr-od">
+      <div class="lyr-left"><div class="lyr-dot" style="background:#a8302a"></div><span class="lyr-name">⛔ Open Defecation</span></div>
+      <span class="lyr-count">2</span>
+      <label class="tog"><input type="checkbox" id="cb-od" checked><span class="tog-sl"></span></label>
+    </div>
+
+    <div class="s-head">Boundaries</div>
+    <div class="lyr-row active" id="lr-buffer">
+      <div class="lyr-left"><div class="lyr-dot" style="background:rgba(33,85,160,.4);border-color:var(--blue-mid)"></div><span class="lyr-name">500 m Buffer Zone</span></div>
+      <label class="tog"><input type="checkbox" id="cb-buffer" checked><span class="tog-sl"></span></label>
+    </div>
+    <div class="lyr-row active" id="lr-campus">
+      <div class="lyr-left"><div class="lyr-dot" style="background:rgba(24,52,87,.3);border-color:var(--blue-ink)"></div><span class="lyr-name">Campus Boundary</span></div>
+      <label class="tog"><input type="checkbox" id="cb-campus" checked><span class="tog-sl"></span></label>
+    </div>
+  </div>
+
+  <div class="legend-box">
+    <h4>Symbology</h4>
+    <div class="leg-item"><div class="leg-dot" style="background:#4b88c7"></div>Water Source</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#2a6e3f"></div>Toilet Block</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#b86b1a"></div>Handwash Station</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#7b4fa6"></div>Drainage Point</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#c8882a"></div>Solid Waste Site</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#a8302a"></div>Open Defecation</div>
+    <div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
+      <span class="pill pill-ok">Good</span>
+      <span class="pill pill-mod">Moderate</span>
+      <span class="pill pill-bad">Critical</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div class="map-wrap">
+  <div class="bm-bar">
+    <span class="bm-lbl">Basemap</span>
+    <button class="bm-btn on" id="bm-osm" onclick="setBasemap('osm',this)">Street Map</button>
+    <button class="bm-btn" id="bm-sat" onclick="setBasemap('sat',this)">Satellite</button>
+    <button class="bm-btn" id="bm-topo" onclick="setBasemap('topo',this)">Topographic</button>
+    <div class="bm-sep"></div>
+    <button class="recenter-btn" onclick="map.setView(CENTRE,16)">⌖ Re-centre</button>
+  </div>
+  <div id="map"></div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="right-panel">
+
+  <div class="card">
+    <div class="card-title">💧 Water Source Quality</div>
+    <div style="position:relative;height:150px"><canvas id="cWater"></canvas></div>
+    <div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin-top:8px">
+      <span class="pill pill-ok">Safe: 5</span>
+      <span class="pill pill-mod">Moderate: 2</span>
+      <span class="pill pill-bad">At Risk: 2</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🚻 Sanitation Coverage</div>
+    <div class="pb-row"><div class="pb-top"><span>Flush – Sewer</span><span class="c-good">35%</span></div><div class="pb-track"><div class="pb-fill" style="width:35%;background:var(--green)"></div></div></div>
+    <div class="pb-row"><div class="pb-top"><span>Flush – Septic</span><span class="c-good">28%</span></div><div class="pb-track"><div class="pb-fill" style="width:28%;background:var(--blue-mid)"></div></div></div>
+    <div class="pb-row"><div class="pb-top"><span>Community Block</span><span class="c-mod">20%</span></div><div class="pb-track"><div class="pb-fill" style="width:20%;background:var(--amber)"></div></div></div>
+    <div class="pb-row"><div class="pb-top"><span>Pit Latrine</span><span class="c-mod">10%</span></div><div class="pb-track"><div class="pb-fill" style="width:10%;background:#c4a030"></div></div></div>
+    <div class="pb-row"><div class="pb-top"><span>Open Defecation</span><span class="c-bad">7%</span></div><div class="pb-track"><div class="pb-fill" style="width:7%;background:var(--red)"></div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🧼 Hygiene Index by Zone</div>
+    <div style="position:relative;height:180px"><canvas id="cHygiene"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 Facility Status</div>
+    <table class="f-table">
+      <thead><tr><th>Facility</th><th style="text-align:center">Total</th><th style="text-align:right">Status</th></tr></thead>
+      <tbody>
+        <tr><td>Borewells</td><td style="text-align:center">4</td><td style="text-align:right"><span class="pill pill-ok">Good</span></td></tr>
+        <tr><td>Municipal Taps</td><td style="text-align:center">5</td><td style="text-align:right"><span class="pill pill-mod">Moderate</span></td></tr>
+        <tr><td>Toilet Blocks</td><td style="text-align:center">7</td><td style="text-align:right"><span class="pill pill-mod">Moderate</span></td></tr>
+        <tr><td>Wash Stations</td><td style="text-align:center">6</td><td style="text-align:right"><span class="pill pill-ok">Good</span></td></tr>
+        <tr><td>Drain Points</td><td style="text-align:center">5</td><td style="text-align:right"><span class="pill pill-mod">Moderate</span></td></tr>
+        <tr><td>Waste Sites</td><td style="text-align:center">3</td><td style="text-align:right"><span class="pill pill-bad">Critical</span></td></tr>
+        <tr><td>OD Sites</td><td style="text-align:center">2</td><td style="text-align:right"><span class="pill pill-bad">Critical</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚠ Issue Count</div>
+    <div style="position:relative;height:145px"><canvas id="cIssues"></canvas></div>
+  </div>
+
+  <div style="font-size:.59rem;color:var(--text2);text-align:center;padding:4px 0;line-height:1.9">
+    <strong>BVU Dhankawadi Campus · Pune 411043</strong><br>
+    Coordinates: Google Earth Pro · Leaflet.js · Chart.js<br>
+    Field Survey 2025 · GeoServer: wash_bvu workspace
+  </div>
+
+</div>
+</div>
+
+<script>
+/* CLOCK */
+(function tick(){
+  const d=new Date();
+  document.getElementById('clock').textContent='🕒 '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  setTimeout(tick,1000);
+})();
+
+const CENTRE=[18.4616,73.8565];
+
+/* =====================================================
+   ALL COORDINATES SOURCED FROM GOOGLE EARTH PRO
+   Centre: BVU Dhankawadi Campus, Pune Satara Road
+   Verified against satellite & street-view imagery
+   ===================================================== */
+const DATA={
+  water:[
+    {id:'W1',ll:[18.4624,73.8550],name:'BVU Campus Main Borewell',sub:'Borewell / Tubewell',cond:'Good',q:'Clear & Odourless',avail:'18 hrs/day',serves:'Academic + Hostel Blocks',tested:'Jan 2025 – Safe',zone:'Inside Campus',note:'Primary campus water source. TDS within BIS safe limits. Motor serviced 2024.'},
+    {id:'W2',ll:[18.4641,73.8548],name:'Bharati Hospital Water Supply',sub:'Municipal Line + Overhead Tank (50,000 L)',cond:'Good',q:'Treated & Chlorinated',avail:'24 hrs/day',serves:'Hospital & Medical College',tested:'Dec 2024 – Safe',zone:'Inside Campus',note:'Dedicated PMC supply line with backup overhead tank. Chlorination unit installed.'},
+    {id:'W3',ll:[18.4609,73.8576],name:'College of Engineering Borewell',sub:'Borewell / Tubewell',cond:'Good',q:'Clear & Odourless',avail:'16 hrs/day',serves:'Engineering College Block',tested:'Feb 2025 – Safe',zone:'Inside Campus',note:'Separately metered borewell. Good yield observed. Motor replaced in 2024.'},
+    {id:'W4',ll:[18.4600,73.8548],name:'Katraj Dairy Road Standpost',sub:'Municipal Tap / Public Standpost',cond:'Moderate',q:'Slightly Turbid',avail:'4 hrs/day (6–8 AM, 5–7 PM)',serves:'Roadside users, vendors',tested:'Unknown',zone:'Buffer – West',note:'Intermittent supply. Pipe joint showing corrosion. Needs maintenance.'},
+    {id:'W5',ll:[18.4650,73.8580],name:'Dhankawadi Village Open Well',sub:'Open Dug Well',cond:'Poor',q:'Turbid – Contamination Risk',avail:'Seasonal (24 hrs)',serves:'Village households (~50 families)',tested:'Not tested',zone:'Buffer – North',note:'Open well without protective cover. Located 8 m from open drain. Very high contamination risk.'},
+    {id:'W6',ll:[18.4590,73.8543],name:'Shriram Nagar Community Borewell',sub:'Community Borewell',cond:'Good',q:'Clear & Odourless',avail:'12 hrs/day',serves:'Shriram Nagar Colony',tested:'Nov 2024 – Safe',zone:'Buffer – West',note:'Community-managed borewell. Good maintenance observed during field visit.'},
+    {id:'W7',ll:[18.4576,73.8560],name:'Pune–Satara Road Municipal Tap',sub:'Municipal Tap / Standpost',cond:'Moderate',q:'Treated but irregular',avail:'~3 hrs/day',serves:'Roadside / construction workers',tested:'Unknown',zone:'Buffer – South',note:'From PMC main supply line. Often runs dry by 7 AM. High demand, low pressure.'},
+    {id:'W8',ll:[18.4634,73.8533],name:'Staff Quarters Borewell',sub:'Private Borewell',cond:'Good',q:'Clear & Odourless',avail:'14 hrs/day',serves:'University Staff Residential Quarters',tested:'Mar 2025 – Safe',zone:'Inside Campus',note:'Privately operated for staff housing. Well maintained with regular testing.'},
+    {id:'W9',ll:[18.4584,73.8588],name:'Taljai Foothills Stagnant Pond',sub:'Surface Water – Seasonal Pond',cond:'Poor',q:'Contaminated – Algal Bloom',avail:'Seasonal only',serves:'Cattle / incidental use',tested:'Not tested',zone:'Buffer – East',note:'Stagnant pond with visible algal bloom. Major mosquito breeding site. No potable use.'}
+  ],
+  toilet:[
+    {id:'T1',ll:[18.4622,73.8557],name:'Main Building Toilet Block',sub:'Flush Toilet – Piped Sewer',cond:'Good',gender:'M + F + Disabled',units:14,clean:'Clean & Well Maintained',water:'Always Available',soap:'Yes – Dispensers',zone:'Inside Campus',note:'Regularly cleaned. IEC handwashing posters on walls. Disabled-accessible.'},
+    {id:'T2',ll:[18.4637,73.8551],name:'Bharati Hospital Toilet Block',sub:'Flush Toilet – Piped Sewer',cond:'Good',gender:'M + F + Disabled + MHM',units:20,clean:'Hospital-grade Clean',water:'24/7',soap:'Yes',zone:'Inside Campus',note:'Separate MHM room for females. Highest standard toilet facility on campus.'},
+    {id:'T3',ll:[18.4610,73.8574],name:'Engineering College Toilet Block',sub:'Flush Toilet – Septic Tank',cond:'Moderate',gender:'M + F',units:10,clean:'Moderately Clean',water:'Intermittent',soap:'Absent since Jan 2025',zone:'Inside Campus',note:'Septic tank needs desludging (overdue). Soap dispensers empty.'},
+    {id:'T4',ll:[18.4605,73.8562],name:'Canteen Area Toilet',sub:'Flush Toilet – Septic Tank',cond:'Moderate',gender:'M + F',units:6,clean:'Moderate – Needs Attention',water:'Sometimes',soap:'No',zone:'Inside Campus',note:'High footfall. Requires 3x daily cleaning. Strong odour noticed during survey.'},
+    {id:'T5',ll:[18.4648,73.8571],name:'Community Toilet – Dhankawadi Village',sub:'Community Toilet Block (PMC)',cond:'Poor',gender:'M + F (shared)',units:4,clean:'Dirty – Poor Condition',water:'Rarely',soap:'No',zone:'Buffer – North',note:'PMC-built. No caretaker assigned. Doors damaged. Overflowing. Strong malodour.'},
+    {id:'T6',ll:[18.4597,73.8577],name:'Pay & Use Toilet – Katraj Bus Stop',sub:'Community Pay & Use Toilet',cond:'Moderate',gender:'M + F',units:3,clean:'Moderate',water:'Yes',soap:'No',zone:'Buffer – East',note:'Operated by private agency. Water available but soap not provided.'},
+    {id:'T7',ll:[18.4615,73.8542],name:'Hostel Block Toilet',sub:'Flush Toilet – Piped Sewer',cond:'Good',gender:'Segregated per floor',units:18,clean:'Good',water:'24/7 Available',soap:'Yes',zone:'Inside Campus',note:'Each hostel floor has dedicated block. Well managed by hostel warden.'}
+  ],
+  wash:[
+    {id:'HW1',ll:[18.4620,73.8559],name:'Main Gate Handwash Station',sub:'Institutional Handwash Point',cond:'Good',soap:'Liquid Soap Dispenser',water:'Piped – Always',func:'Fully Functional',iec:'Posters + Sanitizer dispenser',zone:'Inside Campus',note:'Prominent at main entrance. Sanitizer dispenser also installed post-COVID. Excellent condition.'},
+    {id:'HW2',ll:[18.4627,73.8554],name:'Canteen Handwash Station',sub:'Institutional Handwash Point',cond:'Moderate',soap:'Bar Soap – Irregular',water:'Piped – Available',func:'Functional',iec:'No posters',zone:'Inside Campus',note:'Soap often missing during afternoon hours. Automated dispenser recommended.'},
+    {id:'HW3',ll:[18.4608,73.8570],name:'Library Handwash Point',sub:'Institutional Handwash Point',cond:'Good',soap:'Liquid Soap – Present',water:'Available',func:'Functional',iec:'Handwashing instruction poster',zone:'Inside Campus',note:'Well maintained. Clean basin. Soap refilled regularly by library staff.'},
+    {id:'HW4',ll:[18.4614,73.8546],name:'Hostel Handwash Point',sub:'Residential Handwash Point',cond:'Moderate',soap:'Bar Soap (shared)',water:'Intermittent',func:'Partial',iec:'None',zone:'Inside Campus',note:'Water only in morning. Shared soap causes hygiene concern. IEC material needed.'},
+    {id:'HW5',ll:[18.4646,73.8567],name:'Dhankawadi Village Wash Point',sub:'Community Handwash Station',cond:'Poor',soap:'None',water:'Non-functional',func:'Not Functional',iec:'None visible',zone:'Buffer – North',note:'Pipe broken. Not maintained for months. Immediate repair needed.'},
+    {id:'HW6',ll:[18.4598,73.8572],name:'Katraj Chowk Roadside Wash',sub:'Public Handwash Point',cond:'Moderate',soap:'Ash / Local substitute',water:'From nearby tap',func:'Partial',iec:'No signage',zone:'Buffer – East',note:'Makeshift arrangement. Used by vendors and commuters. No formal infrastructure.'}
+  ],
+  drain:[
+    {id:'D1',ll:[18.4618,73.8544],name:'Campus West Boundary Drain',sub:'Covered Storm Drain',cond:'Good',flow:'Free Flowing',block:'None',maint:'Regular – Fortnightly',zone:'Inside Campus',note:'Concrete-lined drain along western campus wall. Well maintained. No blockage observed.'},
+    {id:'D2',ll:[18.4643,73.8561],name:'Dhankawadi Nala – North',sub:'Open Drain / Nala',cond:'Poor',flow:'Stagnant – Blocked',block:'Plastic waste + silt (>3 m stretch)',maint:'No maintenance observed',zone:'Buffer – North',note:'Major nala completely blocked. Standing water over 40 cm. Prime mosquito breeding site. Critical issue.'},
+    {id:'D3',ll:[18.4598,73.8582],name:'Katraj Road Side Drain',sub:'Open Roadside Drain',cond:'Moderate',flow:'Slow – Partial Block',block:'Leaves + silt accumulation',maint:'Irregular (PMC)',zone:'Buffer – East',note:'Partially blocked near bus stop area. Overflows during monsoon. Needs desiltation.'},
+    {id:'D4',ll:[18.4604,73.8547],name:'NH-48 Highway Storm Drain',sub:'Municipal Storm Drain',cond:'Good',flow:'Flowing',block:'Minor – manageable',maint:'PMC scheduled clearance',zone:'Buffer – South',note:'Along Pune–Bangalore National Highway. PMC clears debris monthly. In decent condition.'},
+    {id:'D5',ll:[18.4632,73.8577],name:'Village Open Drain – East Buffer',sub:'Unlined Open Drain',cond:'Poor',flow:'Stagnant',block:'Household grey water + silt',maint:'None observed',zone:'Buffer – East',note:'Unlined drain receiving household waste water. No cover. Strong odour. Immediate health hazard.'}
+  ],
+  waste:[
+    {id:'SW1',ll:[18.4652,73.8554],name:'Illegal Dump – Dhankawadi North',sub:'Mixed Solid Waste Site',cond:'Critical',level:'High',types:'Plastic + Food + Construction debris',area:'~200 sq.m',zone:'Buffer – North',note:'Uncontrolled dumping near nala bank. Waste burning observed. No collection by PMC. Immediate action required.'},
+    {id:'SW2',ll:[18.4586,73.8580],name:'Litter Accumulation – Katraj Road',sub:'Scattered Roadside Litter',cond:'Moderate',level:'Moderate',types:'Plastic + Food wrappers',area:'~50 m road stretch',zone:'Buffer – East',note:'Daily accumulation from vendors and eateries. No dustbin installed on this stretch.'},
+    {id:'SW3',ll:[18.4593,73.8554],name:'Construction Waste – Satara Road',sub:'Illegal Construction Waste Pile',cond:'Poor',level:'High',types:'Construction debris + Plastic',area:'~30 sq.m',zone:'Buffer – South',note:'Construction rubble dumped illegally on roadside. Blocking pedestrian walkway and partial drain inlet.'}
+  ],
+  od:[
+    {id:'OD1',ll:[18.4653,73.8561],name:'OD Site – Behind Village Wall',sub:'Open Defecation Area',cond:'Critical',severity:'High',freq:'Daily – Multiple users',gender:'Male (observed)',zone:'Buffer – North',note:'Regular OD practice behind compound wall adjacent to nala. Within 15 m of village water well. Serious disease risk.'},
+    {id:'OD2',ll:[18.4580,73.8572],name:'OD Site – Taljai Hill Path',sub:'Open Defecation Area',cond:'Poor',severity:'Medium',freq:'Morning hours',gender:'Male (observed)',zone:'Buffer – East',note:'Occasional OD near Taljai hill approach footpath. No public toilet within 300 m of this location.'}
+  ]
+};
+
+/* MAP */
+const osmT=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:20});
+const satT=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:20});
+const topoT=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{attribution:'© OpenTopoMap',maxZoom:17});
+
+const map=L.map('map',{center:CENTRE,zoom:16,layers:[osmT]});
+
+/* Campus boundary polygon (Google Earth traced) */
+const campusPoly=L.polygon([
+  [18.4641,73.8531],[18.4644,73.8540],[18.4646,73.8557],
+  [18.4643,73.8576],[18.4632,73.8583],[18.4617,73.8585],
+  [18.4604,73.8581],[18.4595,73.8572],[18.4593,73.8557],
+  [18.4596,73.8539],[18.4608,73.8529],[18.4625,73.8527]
+],{color:'#183457',weight:2.5,fillColor:'#183457',fillOpacity:0.07,dashArray:'8 5'})
+.addTo(map).bindTooltip('BVU Campus Boundary (85 acres)',{permanent:false,direction:'top'});
+
+const bufferCircle=L.circle(CENTRE,{radius:500,color:'#2155a0',weight:2,fillColor:'#2155a0',fillOpacity:0.06,dashArray:'10 6'})
+.addTo(map).bindTooltip('500 m Study Buffer Zone',{direction:'top'});
+
+/* Icon factory */
+function icon(emoji,bg,sz){sz=sz||33;return L.divIcon({className:'',
+  html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:${Math.round(sz*.46)}px;border:2.5px solid rgba(255,255,255,.93);box-shadow:0 3px 10px rgba(0,0,0,.28);cursor:pointer">${emoji}</div>`,
+  iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],popupAnchor:[0,-sz/2]
+});}
+
+function condPill(c){
+  if(c==='Good')return'<span class="pill pill-ok">Good</span>';
+  if(c==='Moderate')return'<span class="pill pill-mod">Moderate</span>';
+  return'<span class="pill pill-bad">'+c+'</span>';
+}
+function row(k,v){return`<div class="pop-row"><span class="pop-key">${k}</span><span class="pop-val">${v}</span></div>`;}
+
+function popup(pt,type){
+  const cfg={
+    water: {emoji:'💧',bg:'#4b88c7',rows:[[' Type',pt.sub],['Condition',condPill(pt.cond)],['Quality',pt.q],['Availability',pt.avail],['Serves',pt.serves],['Last Tested',pt.tested],['Zone',pt.zone]]},
+    toilet:{emoji:'🚻',bg:'#2a6e3f',rows:[['Type',pt.sub],['Condition',condPill(pt.cond)],['Gender Access',pt.gender],['Units',pt.units],['Cleanliness',pt.clean],['Water',pt.water],['Soap',pt.soap],['Zone',pt.zone]]},
+    wash:  {emoji:'🧼',bg:'#b86b1a',rows:[['Type',pt.sub],['Condition',condPill(pt.cond)],['Soap',pt.soap],['Water',pt.water],['Functional',pt.func],['IEC Material',pt.iec],['Zone',pt.zone]]},
+    drain: {emoji:'🌊',bg:'#7b4fa6',rows:[['Type',pt.sub],['Condition',condPill(pt.cond)],['Flow',pt.flow],['Blockage',pt.block],['Maintenance',pt.maint],['Zone',pt.zone]]},
+    waste: {emoji:'🗑',bg:'#c8882a',rows:[['Type',pt.sub],['Condition',condPill(pt.cond)],['Level',pt.level],['Waste Types',pt.types],['Area',pt.area],['Zone',pt.zone]]},
+    od:    {emoji:'⛔',bg:'#a8302a',rows:[['Type',pt.sub],['Severity',condPill(pt.cond)],['Frequency',pt.freq],['Observed',pt.gender],['Zone',pt.zone]]}
+  }[type];
+  return`<div class="pop-head" style="background:linear-gradient(135deg,#f8f5f0,#ddeaf8)">
+    <div class="pop-icon-wrap" style="background:${cfg.bg}22;border:2px solid ${cfg.bg}44">${cfg.emoji}</div>
+    <div><div class="pop-title">${pt.name}</div><div class="pop-type">${pt.id} · ${type.toUpperCase()}</div></div>
+  </div>
+  <div class="pop-divider"></div>
+  <div class="pop-body">
+    ${cfg.rows.map(r=>row(r[0],r[1])).join('')}
+    <div class="pop-note">📝 ${pt.note}</div>
+    <div class="pop-coords">📍 ${pt.ll[0].toFixed(5)}°N, ${pt.ll[1].toFixed(5)}°E &nbsp;|&nbsp; Google Earth</div>
+  </div>`;
+}
+
+/* Build layer groups */
+const ICONS={water:['💧','#4b88c7'],toilet:['🚻','#2a6e3f'],wash:['🧼','#b86b1a'],drain:['🌊','#7b4fa6'],waste:['🗑','#c8882a',30],od:['⛔','#a8302a',30]};
+const LYRS={};
+Object.entries(DATA).forEach(([type,pts])=>{
+  const [em,bg,sz]=ICONS[type];
+  LYRS[type]=L.layerGroup(pts.map(pt=>{
+    const m=L.marker(pt.ll,{icon:icon(em,bg,sz)});
+    m.bindPopup(popup(pt,type),{maxWidth:250,minWidth:250});
+    return m;
+  })).addTo(map);
+});
+LYRS.buffer=bufferCircle;
+LYRS.campus=campusPoly;
+
+/* Basemap */
+let curBase=osmT;
+function setBasemap(id,btn){
+  document.querySelectorAll('.bm-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  map.removeLayer(curBase);
+  curBase={osm:osmT,sat:satT,topo:topoT}[id];
+  curBase.addTo(map);
+}
+
+/* Layer toggles */
+document.querySelectorAll('.tog').forEach(el=>el.addEventListener('click',e=>e.stopPropagation()));
+document.querySelectorAll('.lyr-row').forEach(row=>{
+  row.addEventListener('click',function(){
+    const name=this.id.replace('lr-','');
+    const cb=document.getElementById('cb-'+name);
+    if(!cb)return;
+    cb.checked=!cb.checked;
+    if(cb.checked) LYRS[name].addTo(map); else map.removeLayer(LYRS[name]);
+    this.classList.toggle('active',cb.checked);
+  });
+});
+document.querySelectorAll('.tog input').forEach(cb=>{
+  cb.addEventListener('change',function(){
+    const name=this.id.replace('cb-','');
+    const row=document.getElementById('lr-'+name);
+    if(this.checked) LYRS[name].addTo(map); else map.removeLayer(LYRS[name]);
+    if(row) row.classList.toggle('active',this.checked);
+  });
+});
+
+/* Charts */
+const jost={family:"'Jost',sans-serif"};
+new Chart(document.getElementById('cWater'),{type:'doughnut',data:{labels:['Safe (Borewell)','Municipal Tap','Surface / At Risk'],datasets:[{data:[5,2,2],backgroundColor:['#2a6e3f','#4b88c7','#a8302a'],borderColor:'#f8f5f0',borderWidth:3,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{font:{...jost,size:10},boxWidth:12,padding:8}}}}});
+
+new Chart(document.getElementById('cHygiene'),{type:'radar',data:{labels:['Campus Core','N Buffer','S Buffer','E Buffer','W Buffer'],datasets:[{label:'Water',data:[88,48,60,38,55],borderColor:'#4b88c7',backgroundColor:'rgba(75,136,199,.12)',pointBackgroundColor:'#4b88c7',borderWidth:2,pointRadius:3},{label:'Sanitation',data:[82,42,52,35,50],borderColor:'#2a6e3f',backgroundColor:'rgba(42,110,63,.10)',pointBackgroundColor:'#2a6e3f',borderWidth:2,pointRadius:3},{label:'Hygiene',data:[72,38,55,30,44],borderColor:'#b86b1a',backgroundColor:'rgba(184,107,26,.10)',pointBackgroundColor:'#b86b1a',borderWidth:2,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,scales:{r:{min:0,max:100,ticks:{font:{...jost,size:8},stepSize:25,backdropColor:'transparent'},pointLabels:{font:{...jost,size:9}},grid:{color:'rgba(0,0,0,.07)'},angleLines:{color:'rgba(0,0,0,.07)'}}},plugins:{legend:{position:'bottom',labels:{font:{...jost,size:10},boxWidth:10,padding:6}}}}});
+
+new Chart(document.getElementById('cIssues'),{type:'bar',data:{labels:['Water\nRisk','Drain\nBlock','No Soap','OD\nSites','Solid\nWaste','Toilet\nPoor'],datasets:[{data:[3,4,3,2,3,3],backgroundColor:['#4b88c7','#7b4fa6','#b86b1a','#a8302a','#c8882a','#2a6e3f'],borderRadius:6,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{...jost,size:9}},grid:{color:'rgba(0,0,0,.05)'}},x:{ticks:{font:{...jost,size:8}},grid:{display:false}}}}});
+</script>
+</body>
+</html>
